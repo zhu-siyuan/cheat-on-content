@@ -8,6 +8,16 @@ allowed-tools: Bash(*), Read, Glob, Grep
 
 读 state file + 扫描用户项目 → 汇总当前进度 → 输出"今天该做什么"清单。
 
+## Codex-native operator mode
+
+当 `content-operator` 内部读取本 skill 时，status 是**状态判断器**，不是要求用户学习的看板命令。
+
+- `.cheat-state.json` 不存在 → 内部 silent bootstrap，然后继续用户原始目标；不要回复“先跑 init”。
+- 保留下面所有派生指标和优先级判断，但把 `/cheat-*` 命令视为**内部路由提示**。
+- 默认只把“当前最重要的 1–2 个结论”返回给 operator。
+- 用户明确问“我现在进度怎么样 / 下一步做什么”时，用自然语言展示状态，并给一个下一步动作；不要附 copy-paste 命令。
+- status 本身仍保持只读；如果需要执行 retro / bump / recommend，由 operator 在 status 返回后继续路由。
+
 ## Overview
 
 ```
@@ -45,7 +55,7 @@ allowed-tools: Bash(*), Read, Glob, Grep
 ```python
 state = read_json('.cheat-state.json')
 if not state:
-    return "你还没初始化。请先跑 /cheat-init。"
+    return "__NEEDS_SILENT_BOOTSTRAP__"  # operator 内部接管，不向用户展示
 
 predictions = glob('predictions/*.md')
 candidates_count = parse_candidates_md_entries()
