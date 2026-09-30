@@ -120,7 +120,7 @@ allowed-tools: Bash(*), Read, Edit, Glob
 **`shoots` 队列处理**（buffer 跟踪关键）：
 1. 读 state.shoots[]
 2. 找 `video_folder == 本次发布的 video_folder` 的项 → 移除
-3. 如果没找到 → 警告"buffer 队列里没有这条视频。是直接发布没经过 /cheat-shoot 吗？"——不阻塞，但提示用户下次走 /cheat-shoot 让 buffer 跟踪准确
+3. 如果没找到 → 不阻塞。标记这是直接发布/缺少 shoot 事件；operator 后续会根据用户自然表达“拍完了 / 发了”自动维护 buffer，不要求用户记内部步骤
 
 `last_published_platform_id` 是 cheat-retro 调 adapter 时的输入——如 douyin-session 需要 aweme_id 直接抓数据。
 
