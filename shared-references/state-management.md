@@ -220,7 +220,7 @@ with open(state_path) as f:
 LATEST_SCHEMA = "1.1"  # see migrations/registry.md
 if state.get("schema_version") != LATEST_SCHEMA:
     # 不直接 raise — operator 内部判断能否安全自动迁移；不要要求用户记 migrate 命令
-    log_warning(f"schema 版本不匹配：state={state.get('schema_version')}, 期望={LATEST_SCHEMA}。建议跑 /cheat-migrate")
+    log_warning(f"schema 版本不匹配：state={state.get('schema_version')}, 期望={LATEST_SCHEMA}。operator 应检查 migration registry 并安全迁移")
     # MINOR mismatch 通常仍能继续；MAJOR 时部分字段读取可能 KeyError → 用 .get(field, default) 兜底
 ```
 
