@@ -112,21 +112,31 @@ General LLMs help everyone. This helps **your** account.
 
 ## 📦 Install
 
+### Codex native（推荐）
+
 ```bash
-git clone https://github.com/XBuilderLAB/cheat-on-content.git
+git clone https://github.com/zhu-siyuan/cheat-on-content.git
 cd cheat-on-content
+bash install-codex.sh
+```
+
+这会安装一个用户可见的 `content-operator`、内部 `cheat-*` 能力库，以及 Codex 原生 SessionStart / PreToolUse hooks。
+
+### Claude Code legacy
+
+原来的 Claude Code 工作流继续保留：
+
+```bash
 bash install.sh
 ```
 
 > ⚠️ **Upgrading from v0.x?** Run `/cheat-migrate` in your content project after `git pull`. The 1.3 → 1.4 migration is **BREAKING for blind-channel integrity** — it splits `rubric_notes.md` so the blind sub-agent can't leak actuals. Without migrate, blind scoring will keep flagging `non_blind_warning`. See [CHANGELOG](CHANGELOG.md) and [migrations/1.3-to-1.4.md](migrations/1.3-to-1.4.md).
 
-14 sub-skills are symlinked into your agent's skill directory. One install, every content project gets it.
+15 internal sub-skills remain as the capability library. In Codex native mode, `content-operator` is the only implicit user-facing entry.
 
 **Supported agents**: Claude Code (legacy workflow) · **Codex native zero-learning mode**
 
-> Frozen version: `bash install.sh --copy` / `bash install.sh --codex --copy`
->
-> Uninstall: `bash uninstall.sh` / `bash uninstall.sh --codex` (your content data is not touched)
+> Claude legacy still supports the original `install.sh` options. Codex-native installation is intentionally separated into `install-codex.sh` so its current skill path and hooks do not inherit old Claude-era assumptions.
 
 ---
 
