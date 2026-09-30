@@ -130,7 +130,7 @@ bash install-codex.sh
 bash install.sh
 ```
 
-> ⚠️ **Upgrading from v0.x?** Run `/cheat-migrate` in your content project after `git pull`. The 1.3 → 1.4 migration is **BREAKING for blind-channel integrity** — it splits `rubric_notes.md` so the blind sub-agent can't leak actuals. Without migrate, blind scoring will keep flagging `non_blind_warning`. See [CHANGELOG](CHANGELOG.md) and [migrations/1.3-to-1.4.md](migrations/1.3-to-1.4.md).
+> ⚠️ **Upgrading an existing project?** In Codex-native mode, open the project normally after `git pull`; the operator detects schema mismatch and applies safe migrations/reconciliation internally. It only asks you when a migration would be destructive or genuinely ambiguous. Claude Code legacy users can still invoke `/cheat-migrate` explicitly. See [CHANGELOG](CHANGELOG.md) and [migrations/1.3-to-1.4.md](migrations/1.3-to-1.4.md).
 
 15 internal sub-skills remain as the capability library. In Codex native mode, `content-operator` is the only implicit user-facing entry.
 
@@ -171,6 +171,8 @@ The Content Operator will:
 8. recalibrate the rubric internally when the evidence is strong enough.
 
 Codex may require a one-time review/trust of the installed lifecycle hooks. After that, SessionStart can restore project state automatically and the PreToolUse guard protects immutable prediction sections.
+
+To remove only the Codex-native install later, run `bash uninstall-codex.sh`. Your content project data is left untouched.
 
 ---
 
