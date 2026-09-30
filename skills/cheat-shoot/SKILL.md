@@ -101,7 +101,7 @@ c) 大改了，基本是另一条 → 走 _redo 流程：
 4. 提供了的话：算 diff
    ```bash
    # 解析 cheat-on-content 源码根（cheat-shoot 是 symlink 装的）
-   SKILL_REAL="$(readlink -f ~/.claude/skills/cheat-shoot 2>/dev/null || readlink ~/.claude/skills/cheat-shoot 2>/dev/null)"
+   SKILL_REAL="$(readlink -f ~/.agents/skills/cheat-shoot 2>/dev/null || readlink ~/.agents/skills/cheat-shoot 2>/dev/null || readlink -f ~/.claude/skills/cheat-shoot 2>/dev/null || readlink ~/.claude/skills/cheat-shoot 2>/dev/null)"
    if [[ -n "$SKILL_REAL" ]]; then
      REPO_ROOT="$(cd "$SKILL_REAL/../.." && pwd)"
      DIFF_TOOL="$REPO_ROOT/tools/diff_pct.py"
@@ -183,7 +183,7 @@ c) 大改了，基本是另一条 → 走 _redo 流程：
 
 ## Refusals
 
-- 「拍了 X，但我从来没跑过 cheat-predict」 → 拒绝。v1 预测**必须拍前写**——拍完才写预测会被画面诱导事后修改。请先 /cheat-predict 写 v1 再来 /cheat-shoot。（v2 重判是另一回事——v1 已存在 + 拍后改稿才允许）
+- 「已经拍完，但系统之前没有写 v1 prediction」 → **不能事后伪造盲预测**。不要让用户回头补一个假的 v1；改走 ad-hoc / reconstructed 诚信路径，记录“拍前预测缺失”，然后继续登记这条内容。下一条在用户表达“准备拍”时由 operator 自动提前锁定 v1。
 - 「我没有 video folder，我直接拍的」 → 询问用户 → 帮他建 video folder + 提示下次走完整流程；登记时标 `ad_hoc: true`
 - 「我改稿了但你直接覆盖 v1 吧，别留 v2 段」 → 拒绝。v1 是档案，v2 才是当前判断——append 不覆盖。两段一起留是 rubric 学习的关键证据
 
