@@ -150,7 +150,10 @@ bootstrap 成功后，不输出初始化庆典/命令清单。
 
 ---
 
-## Workflow
+## Legacy Claude Code explicit onboarding workflow
+
+> 本节保留给 Claude Code legacy / 用户显式要求完整 onboarding 的场景。Codex-native 经 `content-operator` 进入时，**只执行上面的 silent bootstrap，不执行本节问卷与命令提示**。
+
 
 ### Phase 0: 检测当前状态
 
@@ -595,7 +598,7 @@ cheat-learn-from 完成后回到 init 的 Phase 5。
    confidence 会跨入 🟡 偏低；第 10 次后 🟢 中。
 ```
 
-## Key Rules
+## Legacy onboarding Key Rules
 
 1. **不假装成功**：任何步骤失败 → 明确告诉用户哪一步出错。绝不写"✅ 初始化完成"如果实际没完成
 2. **不批量提问**：5 个问题一次问一个
@@ -604,7 +607,7 @@ cheat-learn-from 完成后回到 init 的 Phase 5。
 5. **state 字段统一**：删掉 mode / prediction_complexity / bucket_scheme 等枚举字段——单一用 calibration_samples 整数 + confidence 派生
 6. **import 失败不阻塞**：Q2=b 但 adapter 装失败 / 抓取失败 → 优雅降级到"标 calibration_samples 估值，不导入历史 video folder"
 
-## Refusals
+## Legacy onboarding Refusals
 
 - 「跳过 Q1-Q5，直接给我创建所有文件」 → 拒绝。问题答案直接影响默认配置（content_form、cadence、hooks）
 - 「我已经在别处初始化过了，把那个项目的配置同步过来」 → 慎重。提示用户手动 cp 现有 `.cheat-state.json` 和 `rubric_notes.md`，不自动跨项目同步
