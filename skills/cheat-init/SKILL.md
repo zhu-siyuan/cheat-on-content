@@ -41,6 +41,115 @@ allowed-tools: Bash(*), Read, Write, Edit, Glob, WebFetch, Skill
 
 无。所有信息从 6 个对话问题里收集。
 
+## Codex-native silent bootstrap（优先于下面的 legacy onboarding）
+
+当本 skill 是由 `content-operator` 因为“项目尚无 `.cheat-state.json`”而内部调用时，走本节，**不要执行下面的 6 问 onboarding**。
+
+目标不是“完成初始化仪式”，而是尽快让用户当前想做的内容继续往前走。
+
+### 原则
+
+1. **用户无需说“初始化”。** state 缺失就是初始化信号。
+2. **先建安全骨架，再渐进建档。** 能从用户当前输入和项目文件推断的直接写；不知道的字段用保守默认，不阻塞当前任务。
+3. **不弹问卷。** 只有某个未知字段会实质改变当前产物时才问；一次只问一个。
+4. **不覆盖已有文件。** 半初始化项目优先从现有文件恢复/补齐。
+5. **完成后立即返回用户原始目标。** 不输出“下一步请运行某命令”。
+
+### Silent Phase A：恢复或创建骨架
+
+检查并按“缺什么补什么”创建：
+
+- `scripts/`
+- `predictions/`
+- `videos/`
+- `samples/`
+- `.cheat-cache/`
+- `rubric_notes.md`（用 `templates/rubric_notes.template.md` / 合适 starter rubric）
+- `rubric-memo.md`（如当前 schema 需要）
+- `script_patterns.md`（用 template）
+- `benchmark.md`
+- `audience.md`
+- `candidates.md`
+- `WORKFLOW.md`
+- `STATUS.md`
+- `.gitignore` 中追加敏感/本地缓存项
+
+Codex-native 项目如果根目录不存在 `AGENTS.md`，复制 `templates/AGENTS.template.md` 为 `AGENTS.md`。**已有 AGENTS.md 绝不覆盖**；只在确有必要时合并最小段落。
+
+### Silent Phase B：渐进推断 profile
+
+从当前对话、已有内容文件、URL、目录和历史稿件推断：
+
+- `content_form`
+- `typical_duration_seconds`
+- `target_publish_cadence_days`
+- `benchmark_status`
+- `baseline_plays`
+- `data_collection`
+- `pool_status`
+- 可识别的平台/adapter
+
+优先级：明确用户信息 > 现有项目证据 > 安全默认。
+
+安全默认：
+
+- `content_form`: 当前明显是视频/口播/拍摄 → `opinion-video`；无法判断 → `other`
+- `typical_duration_seconds`: 视频但未知 → 240；非视频/未知 → null（下游读取时容错）
+- `target_publish_cadence_days`: null（不要替用户承诺日更/周更）
+- `data_collection`: `manual`，直到第一次真正需要抓数据时再引导 adapter
+- `benchmark_status`: `none`
+- `pool_status`: `none`
+- `calibration_samples`: 从已有完整 retro 实际数推断；无历史 → 0
+- `baseline_plays`: 无可靠数据 → null
+
+可以附加以下**向后兼容的 UX 元数据**，旧 skill 不认识时会忽略：
+
+```json
+{
+  "runtime": "codex-native",
+  "onboarding_mode": "progressive",
+  "profile_inference": {
+    "content_form": "inferred|explicit|unknown",
+    "duration": "inferred|explicit|unknown",
+    "cadence": "inferred|explicit|unknown",
+    "platform": "inferred|explicit|unknown"
+  }
+}
+```
+
+### Silent Phase C：写 state
+
+按 `shared-references/state-management.md` 当前 schema 写完整 `.cheat-state.json`，使用原子写。
+
+如果目录里已有 predictions/videos/retro，必须先 reconcile：
+- `calibration_samples` 以真实完整复盘数为准；
+- `pending_retros` 从已发布但未复盘项恢复；
+- 不伪造 blind prediction；
+- 不因 state 缺失删除任何历史文件。
+
+### Silent Phase D：Codex hooks
+
+Codex-native 安装优先使用：
+
+- 用户 skill：`~/.agents/skills/`
+- hook：`~/.codex/hooks.json` 或 plugin 的 `hooks/codex-hooks.json`
+
+不要在 Codex 模式下要求用户配置 `.claude/settings.json`。
+
+若 hook 未安装，**不阻塞当前创作任务**。把 `hooks_installed=false` 写入 state；在合适的维护时机再自然提示一次即可。
+
+### Silent Phase E：继续原始请求
+
+bootstrap 成功后，不输出初始化庆典/命令清单。
+
+直接回到触发本流程的原始意图，例如：
+
+- “我有个关于强化学习的想法” → 继续深挖 angle；
+- “帮我写这一期” → 继续写稿；
+- “刚拍完” → 如果来不及做真实 blind v1，按 ad-hoc/reconstructed 诚信路径继续登记，而不是让用户回头补一个假的预测。
+
+---
+
 ## Workflow
 
 ### Phase 0: 检测当前状态
