@@ -79,94 +79,60 @@ rubric_lines = wc -l rubric_notes.md
 
 ### Phase 3: 检测建议触发器
 
-按优先级（高→低）逐项检查：
+按优先级（高→低）计算**内部 action signal**，不要把内部命令名当用户待办：
 
-1. **Buffer 颜色 = 🔴 红** → 第一行高优先级警戒："buffer 已 0/1 篇，下个发布日可能断更——今天必须拍 ≥1 条。说'推荐选题'我只推 top 1 稳分（不推实验性）"
-2. **Buffer 颜色 = 🔵 蓝** → 高优先级提示："buffer 已 N 篇积压。**暂停拍摄**，先发存货 + 复盘。说'已发布 ...'我帮你出队"
-3. **state.shoots 中最早一项 shot_at > 14 天** → "你有视频拍了 N 天还没发——议题时效流失风险，建议尽快发或弃稿"
-4. **in_progress 陈旧** (>= STALE_PREDICTION_DAYS) → 高优先级提示"清理或 publish"
-5. **待复盘 ≥ 1** → 高优先级"今天该复盘 X 篇"
-6. **`pool_status=none` + `calibration_samples=0` + 距 init >24h** → "🌱 你 init 完已经 N 天但还没拍——是因为没选题吗？跑 /cheat-seed 5 分钟拿 5 个候选 + 5 个 draft" 高优先级
-7. **Claude 判断系统性偏差信号**（**不是死磕 ≥3 同向**） → 提示"建议跑 /cheat-bump"
-   - **默认参考**：连续 ≥3 次同向偏差
-   - **但 Claude 可以更早**：1 次极端偏差（≥10x）或 2 次同向 + 评论区强反向证据
-   - **也可以更晚**：3 次同向但每次幅度都 <25%（可能只是噪声）
-   - 提示时显式标注："本次是 [default-aligned] / [judgment-driven]"
-8. **calibration_samples 跨入新 confidence 等级**（0→1, 2→3, 5→6, 10→11, 20→21）→ 提示"🎉 confidence 升级：<旧等级> → <新等级>。bucket 中枢精度从 ±X% 提到 ±Y%"。**仅作通知，无任何用户必须确认的操作**——所有 skill 都已经按 calibration_samples 自动调整
-9. **calibration_samples 跨过 5** → "你的 rubric 形态可以第一次正式 bump 了。回顾 rubric_notes.md 看观察记录段是否有 ≥3 样本支持的 pattern → 跑 /cheat-bump"
-10. **calibration_samples 跨过 10** → "可以跑 /cheat-bump --bucket-only --scheme percentile 让 bucket 边界改用 percentile（永远自洽）"
-11. **calibration_samples 跨过 SQLITE_UPGRADE_THRESHOLD** 且 data_layer=markdown → "建议跑 tools/md-to-sqlite.py"（planned — batch 3, not yet available）
-12. **rubric_notes.md 行数 > CLEANUP_LINE_THRESHOLD** → "建议清算观察段（手动或下次 bump 触发）"
-13. **calibration_samples ≥ 5 + pool_status=none** → "可以开始建立选题池了"
-14. **calibration_samples ≥ 15 + pool_status=none** → "强烈建议建池：/cheat-trends 或手动建 candidates.md"
-15. **state.hooks_installed=false** → "你的 immutability 是君子协定，建议跑 /cheat-init 装 hook"
-16. **state.last_bump_self_audited=true** → "上次 bump 是自审。建议配置 mcp__llm-chat__chat 后下次 bump 走外部审"
-17. **state.rubric_form_mismatch=true** → "你的 content_form 不是 opinion-video，用了内置观点 rubric。前几篇预测会更不准，下次 bump 时建议自行调整权重适配你的形态"
-18. **state.benchmark_status=pending** → "🎯 你 init 时答应等下找对标账号但还没找。跑 /cheat-learn-from 导入 ≥3 条对标视频，工具就有 anchor 了"
-19. **state.benchmark_status=imported + Claude 判断用户数据信号已超过 benchmark** → "📊 你的真实数据已经成为主信号，benchmark 影响淡出"
-   - **默认参考**：calibration_samples ≥ 10
-   - **但 Claude 可以更早**：N=5 但用户的 (打分, 实绩) 配对里出现 ≥3 条与 benchmark pattern 不一致的——说明你的账号已经走出对标的路径
-   - **也可以更晚**：N=15 但用户的样本都很相似，没足够多样性 → benchmark 仍有信号价值
-   - 提示是**通知不是 gate**——benchmark.md 永远保留作 sanity check，cheat-seed 仍可读
+1. **Buffer = 红** → 用户语言："存货快没了，下一条优先做稳妥题，不推实验题。"
+2. **Buffer = 蓝** → "已经有 N 条没发，先消化存货和复盘，不急着继续拍。"
+3. **最早 shot > 14 天** → "有一条拍了 N 天还没发，时效可能在流失。"
+4. **in_progress >= STALE_PREDICTION_DAYS** → operator 需要自然确认：已经发了、弃稿了、还是仍在制作。
+5. **待复盘 ≥ 1** → 当前目标处理完后自然提醒，并准备自动路由 retro。
+6. **pool 为空 + 无校准样本 + bootstrap >24h** → 可能卡在选题；下一次聊内容时优先从用户经历/观点切入。
+7. **系统性偏差信号** → 内部评估 rubric bump：
+   - 默认参考：连续 ≥3 次同向偏差；
+   - 1 次 ≥10x 极端误差可更早；
+   - 3 次但误差都 <25% 可更晚。
+8. **confidence 跨档** → 可以简短通知，不要求用户确认。
+9. **calibration_samples ≥5** → rubric 首次具备正式重校资格；由 operator 在证据成熟时自动评估。
+10. **calibration_samples ≥10** → percentile bucket 可用；内部选择合适时机重校。
+11. **calibration_samples ≥ SQLITE_UPGRADE_THRESHOLD 且 data_layer=markdown** → 工程维护建议，不抢占普通创作对话。
+12. **rubric_notes > CLEANUP_LINE_THRESHOLD** → 下次内部 bump 时顺带清算。
+13. **有足够样本但 pool 为空** → operator 可在用户问“下一条做什么”时自动构建/补充候选池。
+14. **benchmark_status=pending** → 在自然涉及对标/选题时问一个具体账号，不要求用户记导入命令。
+15. **rubric_form_mismatch=true** → 降低预测信心，并随着真实样本调整 rubric。
+16. **last_bump_self_audited=true** → 下次 bump 有外部审核能力时优先走独立审核。
 
-### Phase 4: 输出看板
+### Phase 4: 输出
 
-```
-🎛️ cheat-on-content 状态（更新于 2026-05-04 15:00）
+**被 content-operator 内部调用时**：只返回结构化/紧凑的 1–2 个最高优先级 signal，不展开完整看板。
 
-内容形态：opinion-video / 时长 3-5min / cadence: 隔日更
-当前 rubric：v2 (上次 bump: 2026-04-22)
-校准样本：18 篇
-Confidence: 🟢 较高 (中枢 ±15%，rubric 形态稳定)
-Baseline: 4.2w 中位数
+**用户明确问进度时**：用自然语言输出，例如：
 
-📦 Buffer：3 篇（🟢 绿色）
-   按你的 cadence (隔日更)= 6 天 buffer，节奏稳定
+```text
+最近状态：
+- 有 1 条已经到复盘时间，等你把后台数据/截图给我，我就能直接拆。
+- 还有 2 条拍完没发，按现在节奏够几天，不急着继续囤。
+- 最近三次都高估了“技术密度”的作用，我会在下一轮模型校准里处理。
 
-📊 进度条
-  [█████████████░░░░░] 18 / 30 → SQLite 升级建议门槛
-  [██████████░░░░░░░░] 18 / 10 → percentile 桶可用（已超过门槛）
-
-🎬 待办（按紧急度）
-  🚨 复盘 1 篇（已过 T+3d）
-     - predictions/2026-05-01_db063817_你已不在关系里.md（T+3d 到了）
-  ⚠️  同向偏差 3 次（high, high, high）→ 建议 /cheat-bump
-  💤 in-progress prediction 已陈旧 35 天
-     - predictions/2026-04-01_xxx.md → 是已发了忘登记？还是弃稿？
-
-🔥 候选池
-  - candidates.md: 27 条（tier1: 12, tier2: 9, tier3: 6）
-  - 距上次抓热点: 4 天 — 可以再跑 /cheat-trends
-
-📈 健康度
-  - rubric_notes.md: 412 行（健康，<600 警戒线）
-  - hooks_installed: ✅
-  - external audit configured: ❌ → 建议配 mcp__llm-chat__chat
-
-下一步建议（按推荐优先级）：
-1. /cheat-retro predictions/2026-05-01_db063817_你已不在关系里.md  ← 最紧急
-2. /cheat-bump  ← 同向偏差 3 次的处理
-3. 处理陈旧 in-progress（手动或回 "清理 in-progress"）
-
-完整的命令清单见主 SKILL.md。
+现在最值得先做：把上一条的数据给我；复盘完我再结合结果给你下一条选题。
 ```
 
-输出风格：**直白、具体、可点击**。每个建议附确切的命令——用户应能 copy-paste 直接执行。
+不要输出内部 skill 名、slash command、state JSON 或要求用户 copy-paste 命令。
 
 ## Key Rules
 
-1. **无副作用**。读多写零。任何状态修改是其他 skill 的事
-2. **不假装数据可用**。state file 字段缺失 → 显式标"未知"，不猜
-3. **建议带优先级**。10 个建议同时显示用户会麻木——按紧急度排
-4. **每个建议附命令**。不能只说"该 bump 了"——要给 `/cheat-bump --propose "..."` 的精确入口
+1. **无副作用**：status 自身只读；后续动作由 content-operator 路由给对应内部能力。
+2. **不假装数据可用**：字段缺失就标 unknown，不猜。
+3. **建议有优先级**：默认只 surfaced 最重要的 1–2 件事。
+4. **用户语言优先**：告诉用户“现在发生了什么、需要他补什么”，不是“该运行什么”。
+5. **普通用户不需要看健康度细节**：rubric 行数、hook 元数据、schema 等只在异常或 debug 请求时展示。
 
 ## Refusals
 
-- 「顺便帮我自动跑一下 retro」 → 拒绝。status 是只读，retro 是另一个动作（避免一次操作做两件事）
-- 「我不想看 rubric_notes 行数，太琐碎」 → 输出仍包含但折叠到底部"健康度"区——状态信息的存在让用户在出问题前可见
+- status 自己不写数据；如果用户说“那就顺手复盘”，由 content-operator 在 status 返回后立即路由 retro，而不是让用户重新发一次命令。
+- 用户明确说不想看工程健康度时，不强塞；只有它会影响当前结果时才解释。
 
 ## Integration
 
-- 上游：所有其他 skill 完成时更新 .cheat-state.json，status 是这些更新的可视化
-- 下游：每个建议都路由到具体子 skill
-- meta-logging hook（如启用） → 写 usage.jsonl，status 用它算"距上次 X 多少次"
+- 上游：所有内部 skill 完成时更新 .cheat-state.json。
+- 下游：content-operator 根据 action signal 自动选择 retro / recommend / trends / bump 等内部能力。
+- SessionStart 使用相同派生逻辑给新会话恢复最小必要上下文。
