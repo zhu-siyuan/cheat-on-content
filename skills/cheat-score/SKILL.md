@@ -42,7 +42,7 @@ allowed-tools: Read, Glob, Grep
 
 ### Step 1：前置检查
 
-1. 读 `.cheat-state.json` → 不存在则提示用户先跑 `/cheat-init`，停止
+1. 读 `.cheat-state.json` → 不存在时返回 silent-bootstrap 信号给 content-operator；operator 内部建骨架后继续本次评稿，不向用户要求 init
 2. 读 `<draft-path>` → 不存在或无内容 → 报错并停止
 3. 读 `rubric_notes.md` 找到当前生效的公式段（一般在"当前评分维度"或"综合分公式"位置）
 
