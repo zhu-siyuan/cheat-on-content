@@ -75,7 +75,7 @@ Batch Mode — 用户显式要批量（`/cheat-seed --batch 5`）：
 
 ### Phase 0: 前置检查 + 加载所有 context（**核心：3 个 context 来源**）
 
-1. 读 `.cheat-state.json` → 不存在则提示先跑 `/cheat-init`
+1. 读 `.cheat-state.json` → 不存在则向 content-operator 返回 silent-bootstrap 信号，bootstrap 后继续当前选题讨论
 2. 读 `rubric_notes.md` 拿当前公式（粗打分用）
 3. 读 `script_patterns.md`——写 draft 时按 cheat sheet 选结构
 4. **读已有 prediction 文件**（含 init 时 import 的 reconstructed）作为 **context 来源 A**（用户自己历史）：
@@ -94,7 +94,7 @@ Batch Mode — 用户显式要批量（`/cheat-seed --batch 5`）：
 
 - **A 主导**（用户自己数据）：当 Claude 判断用户数据已能驱动方向时（参考默认：`calibration_samples ≥ 10`，但 Claude 可以更早——如 N=5 但出现 ≥3 个与 benchmark 明显不一致的强样本）
 - **B 主导**（benchmark）：用户数据少 + benchmark 有内容时
-- **B 缺席**（benchmark 为空）+ 用户数据少：纯靠用户 input + 抓热点；明确告诉用户"没 benchmark 也没足够自己数据，建议跑 /cheat-learn-from 后再回来 brainstorm"
+- **B 缺席**（benchmark 为空）+ 用户数据少：纯靠用户 input + 抓热点；内部标记 cold-start 置信度较低；当前 brainstorm 仍继续。后续自然询问对标账号时由 operator 自动导入，不要求用户记 learn-from 命令
 
 判断依据**不是死磕样本数**，而是看：
 - 用户最近 N 个样本的实绩**是否与 benchmark 的高表现样本类型一致**——一致说明 benchmark 仍有借鉴价值；不一致说明用户已经走自己的路
@@ -316,8 +316,8 @@ Mode A 默认深挖用户经历。但如果**用户讲的本身是时事话题**
 > 1. **直接在本文件改写**（同 path：scripts/<...>.md）
 >    - 加你的语气、个人经历、真实金句
 >    - 砍铺垫、砍模型缩写、砍学术包装
-> 2. 改完后跑 `/cheat-predict scripts/<本文件>.md`
-> 3. 拍完跑 `/cheat-shoot scripts/<本文件>.md`
+> 2. 改完后直接告诉 AI“这版可以拍了”，系统自动评分并锁定拍前预测
+> 3. 拍完后直接告诉 AI“拍完了”，系统自动登记拍摄状态
 
 **Article ID**: <12 位 hash>
 **调性**: [基于讨论得出的，不是清单 Q]
@@ -420,9 +420,9 @@ avg_chars_per_line=$(( char_count / (line_count > 0 ? line_count : 1) ))
 
 ## Integration
 
-- 上游：`/cheat-init` Phase 5 末尾在 `pool_status=none + calibration_samples=0` 时主动询问"现在跑 /cheat-seed？"
+- 上游：首次 bootstrap 后如用户当前就在讨论选题，operator 直接进入本流程，不提示内部命令
 - 上游：`/cheat-recommend` 在 candidates 空时引导文案中提及 `/cheat-seed`
-- 上游：`/cheat-status` 在 `pool_status=none + 距 init >24h` 时提示"还没拍——跑 /cheat-seed？"
+- 上游：status 发现 `pool_status=none + 距 bootstrap >24h` 时，把“可能缺选题”作为 operator 内部信号；自然问用户最近有没有想讲的东西
 - 下游：用户的 candidate → candidates.md（tier1，已 deep_read）
 - 下游：（默认）draft → Phase 4.5 humanizer 去 AI 味 → scripts/<id>.md → 用户改写 → /cheat-predict
 - 可选依赖：[`humanizer`](https://github.com/blader/humanizer) skill（MIT，外部项目）。装在 `~/.claude/skills/humanizer/` 时 Phase 4.5 自动启用；未装则优雅跳过。**不打包进 cheat-on-content**——用户自己 clone
