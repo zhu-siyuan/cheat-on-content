@@ -91,9 +91,9 @@ allowed-tools: Bash(*), Read, Edit, Glob
 
 **video folder 处理**：到 cheat-publish 这一步，对应的 `videos/<id>/` 目录**应该已经由 cheat-shoot 创建**（含 script.md）。
 
-- 如 video folder 不存在 → 警告"你跳过了 cheat-shoot？建议先跑 cheat-shoot 把拍摄稿登记进 video folder 再发"，**询问用户是否跳过登记直接发**：
-  - 是 → 自动建一个 video folder（fallback），但不询问稿子一致性，标 `ad_hoc_publish: true`
-  - 否 → 让用户先跑 cheat-shoot 再回来 publish
+- 如 video folder 不存在 → 不要求用户补跑内部命令。直接创建 fallback video folder，标 `ad_hoc_publish: true`。
+  - 如果“实际拍摄稿是否与草稿一致”会影响 v2 判断，才自然问这一件事；
+  - 用户没有保留实际稿时继续登记，不阻塞发布记录，并在 integrity metadata 里标明缺失。
 
 用 Edit 工具（不是 Write 重写整个文件）。
 
@@ -143,7 +143,7 @@ allowed-tools: Bash(*), Read, Edit, Glob
     我会在文件里追加一个 integrity warning。
 
 📅 计划复盘：T+3d，约 2026-05-07
-   到时间说："复盘 predictions/2026-05-04_..."
+   系统已经记下。到期后的新会话会自然提醒；用户也可以随时把后台导出、截图或实绩数据直接交给 AI。
 ```
 
 Buffer 颜色由 [shared-references/cadence-protocol.md](../../shared-references/cadence-protocol.md) 派生。如本次发布让 buffer 跌入红色（断更风险）→ 高亮警告"今天必须再拍 ≥1 条"。
