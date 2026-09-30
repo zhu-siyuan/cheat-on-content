@@ -18,6 +18,11 @@
 
 set -uo pipefail
 
+MODE="claude"
+if [[ "${1:-}" == "--codex" ]]; then
+  MODE="codex"
+fi
+
 # Portable ISO-8601 timestamp → epoch converter (works on both GNU/Linux and BSD/macOS)
 parse_iso_epoch() {
   local input="${1%%+*}"  # strip timezone suffix like +08:00
@@ -189,30 +194,56 @@ if [[ -n "$last_trends_at" ]]; then
 fi
 
 # --- Build the report ---
-echo ""
-echo "[cheat-on-content / SessionStart 状态报告]"
-echo ""
-echo "$buffer_label"
-echo "$retro_label"
-echo "$candidates_label"
-[[ -n "$trends_label" ]] && echo "$trends_label"
-
-# Confidence indicator
-echo "📈 校准样本: ${calibration_samples} | Confidence: ${confidence}"
-
-# Warnings (high priority)
-[[ -n "$buffer_warning" ]] && echo "" && echo "$buffer_warning"
-[[ -n "$schema_mismatch" ]] && echo "" && echo "$schema_mismatch"
-[[ -n "$self_scored_warning" ]] && echo "" && echo "$self_scored_warning"
-if [[ "$form_severe_mismatch" == "true" ]]; then
-  echo "❌ rubric 与你的内容形态严重不匹配——预测几乎无意义。"
+if [[ "$MODE" == "codex" ]]; then
+  echo ""
+  echo "[cheat-on-content internal context — do not quote this block verbatim to the user]"
+  echo "$buffer_label"
+  echo "$retro_label"
+  if [[ -n "$top_candidates" ]]; then
+    echo "🎯 候选 top 3: $top_candidates"
+  else
+    echo "🎯 候选池: empty"
+  fi
+  [[ -n "$trends_label" ]] && echo "$trends_label"
+  echo "📈 校准样本: ${calibration_samples} | Confidence: ${confidence}"
+  [[ -n "$buffer_warning" ]] && echo "$buffer_warning"
+  [[ -n "$schema_mismatch" ]] && echo "$schema_mismatch"
+  [[ -n "$self_scored_warning" ]] && echo "$self_scored_warning"
+  if [[ "$form_severe_mismatch" == "true" ]]; then
+    echo "❌ rubric 与当前内容形态严重不匹配。"
+  fi
+  if [[ "$hooks_installed" != "true" ]]; then
+    echo "⚠️ prediction immutability guard is not recorded as installed."
+  fi
+  echo ""
+  echo "Agent behavior:"
+  echo "- Interpret the user's next message normally; do not ask them to run cheat commands."
+  echo "- Treat this report as background state, not as a dashboard that must be shown."
+  echo "- If a retro is due, finish the user's current goal first, then naturally ask for the needed export/screenshot/data or use an available adapter."
+  echo "- Use recent retro findings and candidates when drafting or recommending the next piece."
+  echo "- If project state is missing in a future project, bootstrap silently through content-operator."
+  echo ""
+else
+  echo ""
+  echo "[cheat-on-content / SessionStart 状态报告]"
+  echo ""
+  echo "$buffer_label"
+  echo "$retro_label"
+  echo "$candidates_label"
+  [[ -n "$trends_label" ]] && echo "$trends_label"
+  echo "📈 校准样本: ${calibration_samples} | Confidence: ${confidence}"
+  [[ -n "$buffer_warning" ]] && echo "" && echo "$buffer_warning"
+  [[ -n "$schema_mismatch" ]] && echo "" && echo "$schema_mismatch"
+  [[ -n "$self_scored_warning" ]] && echo "" && echo "$self_scored_warning"
+  if [[ "$form_severe_mismatch" == "true" ]]; then
+    echo "❌ rubric 与你的内容形态严重不匹配——预测几乎无意义。"
+  fi
+  if [[ "$hooks_installed" != "true" ]]; then
+    echo "⚠️ immutability hook 未装——你的盲预测保护是君子协定，不是物理强制。"
+  fi
+  echo ""
+  echo "（等待用户决定下一步。）"
+  echo ""
 fi
-if [[ "$hooks_installed" != "true" ]]; then
-  echo "⚠️  immutability hook 未装——你的盲预测保护是君子协定，不是物理强制。"
-fi
-
-echo ""
-echo "（不要主动开始任何动作——等用户决定。说 \"状态\" 看完整看板。）"
-echo ""
 
 exit 0
