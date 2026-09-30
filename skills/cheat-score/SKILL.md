@@ -58,11 +58,13 @@ allowed-tools: Read, Glob, Grep
 
 ### Step 3：**delegate 到 blind sub-agent**（不再 inline 打分）
 
+**Runtime mapping**：Codex 优先用当前 harness 的 context-isolated subagent / Multi-agent `spawn_agent` 能力；Claude Code legacy 可用 Task。关键要求是**fresh context + 只传白名单输入**，不是依赖某个特定工具名字。
+
 主对话已经被用户对话 / 已发数据 / 历史 retro 段污染——inline 打分等于带着后视镜判分。
 
-改成**通过 Task tool 调 `/cheat-score-blind` sub-agent**，主 Claude 只做调度 + review。详见 [skills/cheat-score-blind/SKILL.md](../cheat-score-blind/SKILL.md)。
+改成**通过 isolated subagent 调 `/cheat-score-blind` sub-agent**，主 agent 只做调度 + review。详见 [skills/cheat-score-blind/SKILL.md](../cheat-score-blind/SKILL.md)。
 
-**Task prompt 模板**（**只能含**下面这些）：
+**subagent prompt 模板**（**只能含**下面这些）：
 
 ```
 Spawn cheat-score-blind sub-agent.
@@ -76,7 +78,7 @@ Task: 按 rubric_notes 当前公式给上面 script 打分。返回严格 JSON�
 不要询问用户 —— 你没有用户。
 ```
 
-**禁止**塞进 Task prompt 的东西（[cheat-score-blind/SKILL.md](../cheat-score-blind/SKILL.md) 的"主 Claude 调用契约"段）：
+**禁止**塞进 subagent prompt 的东西（[cheat-score-blind/SKILL.md](../cheat-score-blind/SKILL.md) 的"主 agent 调用契约"段）：
 - 用户对话引用 / 摘录
 - 含播放数 / 万 / w / k 等字眼
 - "前一次预测是 X" / "实际播放是 Y" 等 hint
@@ -86,15 +88,15 @@ Task: 按 rubric_notes 当前公式给上面 script 打分。返回严格 JSON�
 
 ### Step 4：解析 sub-agent 回传 JSON + review
 
-sub-agent 返回严格 JSON。主 Claude：
+sub-agent 返回严格 JSON。主 agent：
 
 1. 解析 dimensions 段（含 score + per-dim confidence + reason）
 2. 校验 `self_check.any_contamination_signal == false`，否则警告
 3. 按 rubric_notes 公式算 composite（公式逻辑在主，分数来自 sub-agent）
-4. **不修改 sub-agent 给的维度分**——score 只是显示。如果用户挑刺（"AB 给 3 不是 4"），主 Claude 记录到 `User Override` 但 sub-agent 原始分留档
+4. **不修改 sub-agent 给的维度分**——score 只是显示。如果用户挑刺（"AB 给 3 不是 4"），主 agent 记录到 `User Override` 但 sub-agent 原始分留档
 
 如果 sub-agent 返回 `refusal != null`：
-- `blocked_contaminated_input` → 报告 Task prompt 含违禁字段，让主 Claude 重发
+- `blocked_contaminated_input` → 报告 subagent prompt 含违禁字段，让主 agent 重发
 - `script_path_invalid` → 检查路径
 - `rubric_unparseable` → 提示用户 rubric_notes.md 损坏
 - `non_blind_warning` → 仍接受 dimensions（但 confidence 全 medium），警告
@@ -138,7 +140,7 @@ OUTPUT_DETAIL=compact 时仅输出分数表 + composite，不附理由列。
 
 ## Key Rules
 
-1. **打分走 sub-agent**。主 Claude 不再 inline 打分。看 [cheat-score-blind/SKILL.md](../cheat-score-blind/SKILL.md) 的隔离协议
+1. **打分走 sub-agent**。主 agent 不再 inline 打分。看 [cheat-score-blind/SKILL.md](../cheat-score-blind/SKILL.md) 的隔离协议
 2. **整数分**。不允许 4.5、3.7
 3. **盲打优先**。sub-agent 只看 script + rubric，天然盲——这是它存在的全部理由
 4. **理由是诊断工具**。每个维度的 1-30 字理由不是装饰——复盘时用来找出哪个维度判断错了
@@ -150,7 +152,7 @@ OUTPUT_DETAIL=compact 时仅输出分数表 + composite，不附理由列。
 - 「打分顺便预测一下」 → 拒绝。请改用 `/cheat-predict`。原因：predict 必须走 blind check + 写 immutable 日志，score 跳过这些
 - 「打完分把分数写进 rubric_notes.md 的观察段」 → 拒绝。observation lifecycle 规定观察必须有"实绩 vs 预测"对比，光有打分不构成观察
 - 「能不能直接告诉我会不会爆」 → 拒绝。给具体 composite + bucket 的判定要求走 predict 流程；score 只输出当前 rubric 下的机械计算
-- 「跳过 blind sub-agent 让主 Claude 直接打」 → cheat-score **不接受**这种 escape hatch（与 cheat-predict 不同；cheat-predict 有 `--skip-blind`）。score 是轻量探索，没理由放弃隔离。如真的 Task tool 不可用 → 提示用户配置后再试
+- 「跳过 blind sub-agent 让主 agent 直接打」 → cheat-score **不接受**这种 escape hatch（与 cheat-predict 不同；cheat-predict 有 `--skip-blind`）。score 是轻量探索，没理由放弃隔离。如当前 harness 确实没有隔离 subagent 能力 → 不把运行时配置问题甩给普通用户。由 operator 标记本次为 self-scored / non-blind fallback 并继续轻量评稿；涉及正式 calibration/bump 时则延后该高风险动作。
 
 ## Integration
 
