@@ -469,7 +469,7 @@ baseline: 4.2w 中位数（基于 5 篇校准样本）
 
 ## Integration
 
-- 上游：`/cheat-retro` 检测到 ≥3 同向偏差 → 提议跑 `/cheat-bump`
+- 上游：retro 检测到系统性同向偏差 → operator 内部评估是否进入 bump，不要求用户触发
 - 依赖：`mcp__llm-chat__chat`（如配置）+ isolated subagent（spawn cheat-score-blind）
 - 修改：
   - `rubric_notes.md`（结构性更新，**绝不**写真实视频名 / 实绩）
