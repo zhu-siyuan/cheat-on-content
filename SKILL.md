@@ -1,6 +1,6 @@
 ---
 name: cheat-on-content
-description: 给所有想把"感觉"变成可校准预测的内容创作者。**方法论通用**——打分 → 盲预测 → T+3d 复盘 → 进化 rubric 的循环适用任何能被量化（播放 / 阅读 / 收听 / 点击）的内容。**rubric 是循环的内容，不是循环本身**——当前内置一份观点视频 rubric（参考博主 25+ 视频拟合），其他形态可借这套起步并 bump 调权重。**强烈建议导入对标账号**作为初始信号源（/cheat-learn-from）。触发词："初始化"/"打分这篇"/"启动预测"/"已发布"/"复盘"/"升级 rubric"/"推荐选题"/"抓热点"/"状态"/"找对标"/"learn from"。**首次使用必须先跑 /cheat-init。**
+description: 给所有想把"感觉"变成可校准预测的内容创作者。**方法论通用**——打分 → 盲预测 → T+3d 复盘 → 进化 rubric 的循环适用任何能被量化（播放 / 阅读 / 收听 / 点击）的内容。**rubric 是循环的内容，不是循环本身**——当前内置一份观点视频 rubric（参考博主 25+ 视频拟合），其他形态可借这套起步并 bump 调权重。**强烈建议导入对标账号**作为初始信号源。Codex-native 模式由 `content-operator` 根据自然语言和项目状态自动路由；Claude Code legacy 仍可使用原有 slash-command 入口。
 argument-hint: "[draft-path] [— mode: cold-start|calibration]"
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Skill, mcp__llm-chat__chat
 ---
@@ -144,7 +144,7 @@ cheat-on-content/
 │   ├── cheat-trends/SKILL.md          # ✅ 热点抓取（日常补充候选池，多 adapter）
 │   ├── cheat-status/SKILL.md          # ✅ 状态看板（含 buffer 警戒）
 │   ├── cheat-migrate/SKILL.md         # ✅ schema 升级（老用户 git pull 后用）
-│   └── cheat-score-blind/SKILL.md     # ✅ Channel B 隔离打分 sub-agent（仅 Task tool 调用）
+│   └── cheat-score-blind/SKILL.md     # ✅ Channel B 隔离打分 sub-agent（fresh-context 调用）
 ├── migrations/                        # schema 演进单一来源
 │   ├── registry.md                    # ✅ LATEST_SCHEMA + 版本链表
 │   └── <from>-to-<to>.md              # ✅ 每步迁移的 WHAT/WHY/HOW/Manual fallback
