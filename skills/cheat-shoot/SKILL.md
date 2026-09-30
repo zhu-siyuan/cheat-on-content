@@ -64,7 +64,7 @@ cheat-shoot 自己**不**写预测内容——所有预测落盘逻辑在 cheat-
    - id 简写 `abc123` → glob `scripts/*_abc123_*.md` 找匹配
 2. 验证 `scripts/<id>.md` 存在：不存在 → 报错"找不到 pre-shoot 草稿"
 3. 验证有对应 prediction `predictions/<同名>.md`：
-   - 不存在 → **拒绝登记**，提示"先跑 /cheat-predict 写预测，否则违反盲预测原则——你不能拍完才写预测，那等于事后看了画面写"
+   - 不存在 → **不能伪造拍前预测**。标记本次为 `ad_hoc: true` / `missing_blind_v1: true` 后继续登记；向用户解释“这条没有真实拍前预测，所以不进入纯盲校准”，下一条由 operator 在“准备拍”时自动提前锁定。
    - 存在 → 通过
 
 ### Phase 1：检查重复
