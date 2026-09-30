@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
+bash -n "$ROOT/install.sh"
 bash -n "$ROOT/install-codex.sh"
 bash -n "$ROOT/uninstall-codex.sh"
 bash -n "$ROOT/hooks/session-start.sh"
