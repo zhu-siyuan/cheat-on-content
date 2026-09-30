@@ -324,7 +324,7 @@ predictions/YYYY-MM-DD_<id>_<short-title>.md
 ```markdown
 ## 复盘
 
-（待填——T+RETRO_WINDOW_DAYS 天后跑 /cheat-retro <对应 video folder>）
+（待填——发布后进入复盘窗口；SessionStart / operator 到期后自然提醒并自动路由 retro）
 ```
 
 #### Phase 6b: v2 模式（append 到既有文件）
