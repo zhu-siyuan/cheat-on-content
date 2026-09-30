@@ -2,20 +2,16 @@
 #
 # cheat-on-content / install.sh
 #
-# Symlinks the 15 sub-skills into Claude Code and/or Codex skill directories so
-# agents can find them globally. Re-runnable safely (overwrite after confirmation).
-#
-# After install, in any content project directory: open Claude Code → say "初始化"
-# → /cheat-init runs the onboarding.
+# Legacy Claude Code installer. Codex-native installs are delegated to install-codex.sh so they use the current ~/.agents/skills path and native lifecycle hooks.
 #
 # To uninstall: bash uninstall.sh
 #
 # Usage:
 #   bash install.sh                    # Claude Code install, symlink mode (default)
 #   bash install.sh --copy             # Claude Code install, copy mode
-#   bash install.sh --codex            # Codex install into ~/.codex/skills/
-#   bash install.sh --all              # install for Claude Code and Codex
-#   bash install.sh --codex --copy     # Codex install, copy mode
+#   bash install.sh --codex            # delegates to install-codex.sh
+#   bash install.sh --all              # Claude legacy + Codex native
+#   bash install.sh --codex --copy     # delegates to native symlink installer
 #   bash install.sh --reinstall-hooks <project-dir>
 #                                      # rewrite hook scripts in an existing user project's .cheat-hooks/
 #                                      # (use after git pull when CHANGELOG mentions hook script changes;
@@ -46,6 +42,22 @@ CODEX_SKILLS=(cheat-on-content "${SUB_SKILLS[@]}")
 
 # Resolve the directory containing THIS script (the source root) — needed early for both modes
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Codex native uses a dedicated installer. Keep these compatibility flags so old
+# muscle memory cannot accidentally install into the retired ~/.codex/skills path.
+case " $* " in
+  *" --all "*)
+    claude_args=(--claude)
+    case " $* " in *" --copy "*) claude_args+=(--copy) ;; esac
+    bash "$SCRIPT_DIR/install.sh" "${claude_args[@]}"
+    bash "$SCRIPT_DIR/install-codex.sh"
+    exit 0
+    ;;
+  *" --codex "*)
+    echo "Codex native install is handled by install-codex.sh (symlink mode)."
+    exec bash "$SCRIPT_DIR/install-codex.sh"
+    ;;
+esac
 
 MODE="symlink"
 TARGET_AGENT="claude"

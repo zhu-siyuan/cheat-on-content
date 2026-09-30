@@ -1,0 +1,14 @@
+name: codex-native checks
+
+on:
+  push:
+    branches: ["main", "codex-native-zero-learning"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Codex-native checks
+        run: bash tools/test-codex-native.sh

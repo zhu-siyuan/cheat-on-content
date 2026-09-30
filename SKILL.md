@@ -1,6 +1,6 @@
 ---
 name: cheat-on-content
-description: 给所有想把"感觉"变成可校准预测的内容创作者。**方法论通用**——打分 → 盲预测 → T+3d 复盘 → 进化 rubric 的循环适用任何能被量化（播放 / 阅读 / 收听 / 点击）的内容。**rubric 是循环的内容，不是循环本身**——当前内置一份观点视频 rubric（参考博主 25+ 视频拟合），其他形态可借这套起步并 bump 调权重。**强烈建议导入对标账号**作为初始信号源（/cheat-learn-from）。触发词："初始化"/"打分这篇"/"启动预测"/"已发布"/"复盘"/"升级 rubric"/"推荐选题"/"抓热点"/"状态"/"找对标"/"learn from"。**首次使用必须先跑 /cheat-init。**
+description: 给所有想把"感觉"变成可校准预测的内容创作者。**方法论通用**——打分 → 盲预测 → T+3d 复盘 → 进化 rubric 的循环适用任何能被量化（播放 / 阅读 / 收听 / 点击）的内容。**rubric 是循环的内容，不是循环本身**——当前内置一份观点视频 rubric（参考博主 25+ 视频拟合），其他形态可借这套起步并 bump 调权重。**强烈建议导入对标账号**作为初始信号源。Codex-native 模式由 `content-operator` 根据自然语言和项目状态自动路由；Claude Code legacy 仍可使用原有 slash-command 入口。
 argument-hint: "[draft-path] [— mode: cold-start|calibration]"
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Skill, mcp__llm-chat__chat
 ---
@@ -21,16 +21,18 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Skill, mcp__llm-chat__cha
 
 本文件是**总协议 + 路由器**。具体每个阶段的工作流在 `skills/cheat-*/SKILL.md` 各子 skill 里。
 
-## Codex compatibility
+## Codex-native interface
 
-Codex 没有 Claude Code 的 slash-command harness。安装到 Codex 后，按自然语言触发同一套路由即可：
+Codex 下的正式用户入口是 `skills/content-operator/SKILL.md`。
 
-- `初始化 cheat-on-content` → 读取并执行 `skills/cheat-init/SKILL.md`
-- `打分这篇 scripts/foo.md` → 读取并执行 `skills/cheat-score/SKILL.md`
-- `启动预测 scripts/foo.md` → 读取并执行 `skills/cheat-predict/SKILL.md`
-- `拍了 ...` / `已发布 ...` / `复盘 ...` / `升级 rubric` / `状态` → 分别读取对应 `skills/cheat-*/SKILL.md`
+- 用户**不需要**知道或记住 `/cheat-*`、`初始化`、`状态`、`复盘` 等触发词。
+- `content-operator` 通过宽语义 description + `agents/openai.yaml` 的 implicit invocation 自动接管内容创作相关意图。
+- 本文件和 `skills/cheat-*/SKILL.md` 是内部能力与协议库；Codex 应按当前项目状态自动读取、路由和串联。
+- 首次进入内容项目时，如果没有 `.cheat-state.json`，走 silent bootstrap，不把初始化问卷暴露给用户。
+- SessionStart hook 自动把 buffer、待复盘、候选和校准状态注入 Codex 上下文；这些信息默认作为内部背景，不原样倾倒给用户。
+- 用户只需要正常说：“我有个想法……”“这稿我改好了，准备拍”“刚发了，这是链接”“后台数据在这里”。系统自行判断下一步。
 
-执行时遵循本文件的三条原则和路由表；不要依赖 `/cheat-*` 命令是否存在。Claude Code 专用 hook（`.claude/settings.json`）仍只在 Claude Code 里自动触发；Codex 中需要用户主动说 `状态` 查看 buffer、待复盘和候选池。
+Claude Code 仍可继续使用原有 slash-command / hook 路径；Codex-native 模式以 zero-learning interface 为准。
 
 ---
 
@@ -46,31 +48,25 @@ Codex 没有 Claude Code 的 slash-command harness。安装到 Codex 后，按�
 
 ---
 
-## 路由表（触发词 → 子 skill）
+## 内部能力路由
 
-| 用户说 | 调用 | 前置条件 |
-|---|---|---|
-| "初始化" / "init" / "首次使用" | `/cheat-init` | 无（这是入口） |
-| "找对标" / "学这个账号" / "拆这几个对标视频" / "learn from" / "导入对标账号" | `/cheat-learn-from` | 已 init；cold-start 强烈建议；后续可随时 --append / --replace |
-| "找选题" / "我不知道拍什么" / "seed" / "找前 5 个选题" | `/cheat-seed` | 已 init（cold-start 用户专用一次性种子动作） |
-| "打分这篇 [path]" / "score this [path]" | `/cheat-score` | rubric_notes.md 存在 |
-| "启动预测" / "start prediction" / "给这稿子打分并预测" | `/cheat-predict` | 已 init + 有最终稿 |
-| "拍了 X" / "shot it" / "录完了" | `/cheat-shoot` | 对应预测已写（buffer +1） |
-| "已发布" / "I shipped it" / "发布链接是 X" | `/cheat-publish` | 对应预测文件存在（buffer -1） |
-| "复盘" / "retro this" / "T+3d 数据来了" | `/cheat-retro` | 对应预测文件存在 + 已过 RETRO_WINDOW_DAYS |
-| "构造受众画像" / "更新 persona" / "我的观众是谁" / "build persona" | `/cheat-persona` | 已 init；有复盘评论数据（或 benchmark seed） |
-| "升级 rubric" / "bump rubric" / "更新公式" | `/cheat-bump` | 校准池 ≥ MIN_SAMPLES_FOR_BUMP |
-| "推荐选题" / "next topic" | `/cheat-recommend` | candidates.md 存在且非空 |
-| "抓热点" / "fetch trends" / "今天有什么可做的" | `/cheat-trends` | trend-sources adapter 已配置（日常补充候选池） |
-| "状态" / "status" / "看板" | `/cheat-status` | 任意时刻可调 |
-| "迁移" / "升级 state" / "schema 版本不对" / "migrate" | `/cheat-migrate` | 已 init；用户 git pull 拉了新版后；SessionStart hook 提示 schema mismatch 后 |
+Codex-native 模式不按“魔法触发词”路由，而按**用户语义 + 当前项目状态**路由。完整决策逻辑见 `skills/content-operator/SKILL.md`。
 
-> 拍 vs 发分两个动作：buffer 警戒系统需要明确知道"拍了但没发"vs"已发"两种状态。详见 [shared-references/cadence-protocol.md](shared-references/cadence-protocol.md)。
+下面这些子 skill 仍保留，作为内部能力模块：
 
-**Mode detection**（首次接到非 init 触发词时执行）：
-1. 检查用户当前目录是否有 `.cheat-state.json` → 没有 → 强制路由到 `/cheat-init`
-2. 检查 `predictions/` 下有几个文件含完整 `## 复盘` 段填了真实数据 → 决定 `mode: cold-start | calibration`
-3. 把判定结果写回 `.cheat-state.json` 后再路由到目标 skill
+- idea / topic / 深挖 → `cheat-seed`
+- 对标学习 → `cheat-learn-from`
+- 草稿评估 → `cheat-score`
+- 稿件定稿、准备拍摄 → `cheat-predict`
+- 已拍摄 → `cheat-shoot`
+- 已发布 → `cheat-publish`
+- 实绩数据到达 → `cheat-retro`
+- 受众画像 → `cheat-persona`
+- 系统性偏差 → `cheat-bump`
+- 下一条内容 → `cheat-status` + `cheat-recommend` / `cheat-trends`
+- schema 不兼容 → `cheat-migrate`
+
+**Mode detection** 仍以 `.cheat-state.json` 和已复盘样本为真值，但 state 缺失时由 operator 自动 bootstrap，不要求用户先执行 init。
 
 ---
 
@@ -148,7 +144,7 @@ cheat-on-content/
 │   ├── cheat-trends/SKILL.md          # ✅ 热点抓取（日常补充候选池，多 adapter）
 │   ├── cheat-status/SKILL.md          # ✅ 状态看板（含 buffer 警戒）
 │   ├── cheat-migrate/SKILL.md         # ✅ schema 升级（老用户 git pull 后用）
-│   └── cheat-score-blind/SKILL.md     # ✅ Channel B 隔离打分 sub-agent（仅 Task tool 调用）
+│   └── cheat-score-blind/SKILL.md     # ✅ Channel B 隔离打分 sub-agent（fresh-context 调用）
 ├── migrations/                        # schema 演进单一来源
 │   ├── registry.md                    # ✅ LATEST_SCHEMA + 版本链表
 │   └── <from>-to-<to>.md              # ✅ 每步迁移的 WHAT/WHY/HOW/Manual fallback

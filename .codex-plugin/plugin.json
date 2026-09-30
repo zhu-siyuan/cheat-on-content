@@ -1,0 +1,7 @@
+{
+  "name": "cheat-on-content",
+  "version": "0.2.0",
+  "description": "A zero-learning content operator for Codex: turn ideas into drafts, predictions, retrospectives, and continuously improving channel-specific judgment.",
+  "skills": "./skills/",
+  "hooks": "./hooks/codex-hooks.json"
+}

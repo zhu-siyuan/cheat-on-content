@@ -2,8 +2,7 @@
 #
 # cheat-on-content SessionStart hook
 #
-# Renders a 4-6 line status report at the start of every Claude Code session.
-# Output is added to Claude's system context — Claude sees it before first reply.
+# Renders project continuity at session start. In Codex mode stdout is injected as developer context; Claude Code keeps the legacy report.
 #
 # Silently exits if:
 #   - Not in a cheat-on-content project (no .cheat-state.json)
@@ -17,6 +16,11 @@
 #   ⚠️ 待办: ...
 
 set -uo pipefail
+
+MODE="claude"
+if [[ "${1:-}" == "--codex" ]]; then
+  MODE="codex"
+fi
 
 # Portable ISO-8601 timestamp → epoch converter (works on both GNU/Linux and BSD/macOS)
 parse_iso_epoch() {
@@ -35,12 +39,13 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
 fi
 
-# Skip if jq missing (Claude can still read state.json himself in conversation)
+# Skip derived calculations if jq is unavailable.
 if ! command -v jq >/dev/null 2>&1; then
-  cat <<'EOF'
-[cheat-on-content] SessionStart: jq not installed — skipping auto status report.
-Claude can still read .cheat-state.json directly. Say "状态" for full status.
-EOF
+  if [[ "$MODE" == "codex" ]]; then
+    echo "[cheat-on-content internal] jq is unavailable; read .cheat-state.json directly if the user's task needs content-project state. Do not ask the user to run a status command."
+  else
+    echo "[cheat-on-content] SessionStart: jq not installed; state can still be read directly."
+  fi
   exit 0
 fi
 
@@ -68,9 +73,17 @@ last_self_scored_at=$(echo "$state" | jq -r '.last_self_scored_at // ""')
 LATEST_SCHEMA="1.4"
 schema_mismatch=""
 if [[ "$schema_version" != "$LATEST_SCHEMA" && "$schema_version" != "unknown" ]]; then
-  schema_mismatch="⚠️  schema 版本不一致：state=${schema_version}, skill 期望=${LATEST_SCHEMA}。建议跑 /cheat-migrate（非阻塞，部分新功能可能在迁移前异常）。"
+  if [[ "$MODE" == "codex" ]]; then
+    schema_mismatch="⚠️ schema mismatch: state=${schema_version}, expected=${LATEST_SCHEMA}. Operator should inspect migrations and migrate safely before relying on new-schema fields."
+  else
+    schema_mismatch="⚠️  schema 版本不一致：state=${schema_version}, skill 期望=${LATEST_SCHEMA}。"
+  fi
 elif [[ "$schema_version" == "unknown" ]]; then
-  schema_mismatch="⚠️  state.schema_version 字段缺失或损坏。建议跑 /cheat-status 检查文件，或备份后重 init。"
+  if [[ "$MODE" == "codex" ]]; then
+    schema_mismatch="⚠️ state.schema_version missing/damaged. Operator should reconcile from project files; do not ask for a magic command."
+  else
+    schema_mismatch="⚠️ state.schema_version 字段缺失或损坏。"
+  fi
 fi
 
 # --- Detect blind-skip contamination (cheat-predict --skip-blind 或 Phase 2.5 选 b 触发) ---
@@ -189,30 +202,55 @@ if [[ -n "$last_trends_at" ]]; then
 fi
 
 # --- Build the report ---
-echo ""
-echo "[cheat-on-content / SessionStart 状态报告]"
-echo ""
-echo "$buffer_label"
-echo "$retro_label"
-echo "$candidates_label"
-[[ -n "$trends_label" ]] && echo "$trends_label"
-
-# Confidence indicator
-echo "📈 校准样本: ${calibration_samples} | Confidence: ${confidence}"
-
-# Warnings (high priority)
-[[ -n "$buffer_warning" ]] && echo "" && echo "$buffer_warning"
-[[ -n "$schema_mismatch" ]] && echo "" && echo "$schema_mismatch"
-[[ -n "$self_scored_warning" ]] && echo "" && echo "$self_scored_warning"
-if [[ "$form_severe_mismatch" == "true" ]]; then
-  echo "❌ rubric 与你的内容形态严重不匹配——预测几乎无意义。"
+if [[ "$MODE" == "codex" ]]; then
+  echo ""
+  echo "[cheat-on-content internal context — do not quote this block verbatim to the user]"
+  echo "$buffer_label"
+  echo "$retro_label"
+  if [[ -n "$top_candidates" ]]; then
+    echo "🎯 候选 top 3: $top_candidates"
+  else
+    echo "🎯 候选池: empty"
+  fi
+  [[ -n "$trends_label" ]] && echo "$trends_label"
+  echo "📈 校准样本: ${calibration_samples} | Confidence: ${confidence}"
+  [[ -n "$buffer_warning" ]] && echo "$buffer_warning"
+  [[ -n "$schema_mismatch" ]] && echo "$schema_mismatch"
+  [[ -n "$self_scored_warning" ]] && echo "$self_scored_warning"
+  if [[ "$form_severe_mismatch" == "true" ]]; then
+    echo "❌ rubric 与当前内容形态严重不匹配。"
+  fi
+  # This hook is running, so Codex lifecycle hooks are active regardless of the
+  # legacy state.hooks_installed flag. Do not surface stale Claude-era metadata.
+  echo ""
+  echo "Agent behavior:"
+  echo "- Interpret the user's next message normally; do not ask them to run cheat commands."
+  echo "- Treat this report as background state, not as a dashboard that must be shown."
+  echo "- If a retro is due, finish the user's current goal first, then naturally ask for the needed export/screenshot/data or use an available adapter."
+  echo "- Use recent retro findings and candidates when drafting or recommending the next piece."
+  echo "- If project state is missing in a future project, bootstrap silently through content-operator."
+  echo ""
+else
+  echo ""
+  echo "[cheat-on-content / SessionStart 状态报告]"
+  echo ""
+  echo "$buffer_label"
+  echo "$retro_label"
+  echo "$candidates_label"
+  [[ -n "$trends_label" ]] && echo "$trends_label"
+  echo "📈 校准样本: ${calibration_samples} | Confidence: ${confidence}"
+  [[ -n "$buffer_warning" ]] && echo "" && echo "$buffer_warning"
+  [[ -n "$schema_mismatch" ]] && echo "" && echo "$schema_mismatch"
+  [[ -n "$self_scored_warning" ]] && echo "" && echo "$self_scored_warning"
+  if [[ "$form_severe_mismatch" == "true" ]]; then
+    echo "❌ rubric 与你的内容形态严重不匹配——预测几乎无意义。"
+  fi
+  if [[ "$hooks_installed" != "true" ]]; then
+    echo "⚠️ immutability hook 未装——你的盲预测保护是君子协定，不是物理强制。"
+  fi
+  echo ""
+  echo "（等待用户决定下一步。）"
+  echo ""
 fi
-if [[ "$hooks_installed" != "true" ]]; then
-  echo "⚠️  immutability hook 未装——你的盲预测保护是君子协定，不是物理强制。"
-fi
-
-echo ""
-echo "（不要主动开始任何动作——等用户决定。说 \"状态\" 看完整看板。）"
-echo ""
 
 exit 0

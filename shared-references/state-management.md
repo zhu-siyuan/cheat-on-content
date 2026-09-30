@@ -10,7 +10,7 @@
 <user-content-project>/.cheat-state.json
 ```
 
-**绝不**放到全局 `~/.claude/` 或 cheat-on-content 自己的目录——一个用户可能维护多个内容项目，每个项目独立状态。
+**绝不**放到全局 agent 配置目录（如 `~/.claude/`、`~/.codex/`、`~/.agents/`）或 cheat-on-content 自己的目录——一个用户可能维护多个内容项目，每个项目独立状态。
 
 ---
 
@@ -61,6 +61,25 @@
   "initialized_at": "2026-05-04T15:00:00+08:00"
 }
 ```
+
+### Codex-native 可选 UX 元数据
+
+以下字段是向后兼容的体验层元数据。旧 skill 不认识时必须忽略，不作为核心算法 gate：
+
+```json
+{
+  "runtime": "codex-native",
+  "onboarding_mode": "progressive",
+  "profile_inference": {
+    "content_form": "explicit|inferred|unknown",
+    "duration": "explicit|inferred|unknown",
+    "cadence": "explicit|inferred|unknown",
+    "platform": "explicit|inferred|unknown"
+  }
+}
+```
+
+它们用于告诉 operator：哪些 profile 是用户明确说的，哪些只是系统推断。推断值可以被后续自然对话覆盖；不要为了填满字段而打断用户。
 
 ### 关键变更（v1.4）
 
@@ -190,8 +209,9 @@ import json, os
 
 state_path = os.path.join(os.getcwd(), ".cheat-state.json")
 if not os.path.exists(state_path):
-    # 不存在 = 用户没初始化，路由到 /cheat-init
-    raise NeedsInitError()
+    # Codex-native: 这是 silent bootstrap 信号，不向用户暴露“先初始化”。
+    # content-operator 内部执行 cheat-init 的 silent bootstrap 后继续原始任务。
+    raise NeedsSilentBootstrap()
 
 with open(state_path) as f:
     state = json.load(f)
@@ -199,8 +219,8 @@ with open(state_path) as f:
 # 检查 schema_version 兼容
 LATEST_SCHEMA = "1.1"  # see migrations/registry.md
 if state.get("schema_version") != LATEST_SCHEMA:
-    # 不直接 raise — 提示用户跑 /cheat-migrate（非阻塞）
-    log_warning(f"schema 版本不匹配：state={state.get('schema_version')}, 期望={LATEST_SCHEMA}。建议跑 /cheat-migrate")
+    # 不直接 raise — operator 内部判断能否安全自动迁移；不要要求用户记 migrate 命令
+    log_warning(f"schema 版本不匹配：state={state.get('schema_version')}, 期望={LATEST_SCHEMA}。operator 应检查 migration registry 并安全迁移")
     # MINOR mismatch 通常仍能继续；MAJOR 时部分字段读取可能 KeyError → 用 .get(field, default) 兜底
 ```
 
@@ -233,7 +253,7 @@ def write_state(state):
 
 ### 并发模型
 
-预期场景：**单用户 + 单 Claude Code 会话**。不做锁。
+预期场景：**单用户 + 单活动 agent 会话**。不做锁。
 
 如果两个会话并行操作同一个项目（罕见且不推荐）：可能出现写覆盖。**未来需要时**可加文件锁（`fcntl.flock`）；当前不加，避免引入复杂度。
 
@@ -259,9 +279,9 @@ def write_state(state):
 
 | 症状 | 处理 |
 |---|---|
-| 文件不存在 | 提示"未初始化，请跑 /cheat-init"，**不**自动创建 |
+| 文件不存在 | Codex-native 视为 silent bootstrap 信号；由 content-operator 补齐骨架并继续当前任务。Legacy harness 可保留显式 init 路径 |
 | JSON 解析失败 | 提示"state file 损坏：path/to/.cheat-state.json"，建议手动修复或备份 + 重新 init |
-| schema_version 不识别 | 提示版本号 + 建议跑 [/cheat-migrate](../skills/cheat-migrate/SKILL.md)。SessionStart hook 会自动检测并提示 |
+| schema_version 不识别 | operator 先读取 migration registry；安全迁移可内部执行，破坏性迁移才向用户解释并确认。SessionStart 只注入内部提示 |
 | `pending_retros` 含已删除的文件 | cheat-status 检测时安静移除，不报错 |
 | `in_progress_session` 文件已不存在 | cheat-status 检测到 → 询问用户是否清理 |
 | `calibration_samples` 与 `predictions/` 实际复盘数不一致 | cheat-status 报告差异。临时手改 state 即可；持续不一致是 bug，应在下个 minor 版本里加入 cheat-migrate 的 reconciliation step |
@@ -282,7 +302,7 @@ def write_state(state):
 - 也可能含 adapter 调试文件（如 `douyin-session-debug/`）
 - 这些是设备本地状态，跨设备同步无意义
 
-`/cheat-init` 应自动在用户项目根追加（不覆盖）`.gitignore`：
+首次 bootstrap 应自动在用户项目根追加（不覆盖）`.gitignore`：
 
 ```
 .cheat-cache/
@@ -299,7 +319,7 @@ def write_state(state):
 1. bump `schema_version`（如 "1.1" → "1.2"）
 2. 写 `migrations/<old>-to-<new>.md`（4 段：WHAT/WHY/HOW/Manual fallback）
 3. 改 `migrations/registry.md` 的 `LATEST_SCHEMA` 标记位 + 版本链表
-4. SessionStart hook 检测到不一致时自动提示用户跑 `/cheat-migrate`
+4. SessionStart hook 检测到不一致时把 mismatch 注入 agent context；operator 优先内部迁移，不要求用户记命令
 5. **绝不**让 skill 静默兼容旧版 schema 的删字段或重命名——那会让"哪个版本下哪个字段是什么含义"成谜
 
 新增字段（MINOR，不破坏兼容）：
@@ -324,7 +344,7 @@ def write_state(state):
 - `rubric_version`（应通过 bump 流程更新）
 - `in_progress_session`（应通过 predict/publish 流程更新）
 
-如用户确实想重置：建议**删除整个 .cheat-state.json + 重跑 /cheat-init**——这比手改单字段安全。
+如用户确实想重置：备份后删除 `.cheat-state.json`，让 operator 下次按现有内容文件 silent bootstrap / reconcile；不需要用户重跑初始化命令。
 
 ---
 

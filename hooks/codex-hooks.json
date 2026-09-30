@@ -1,0 +1,31 @@
+{
+  "description": "Codex-native lifecycle hooks for cheat-on-content.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/session-start.sh\" --codex",
+            "statusMessage": "Loading content project context",
+            "additionalContextLimit": 2500
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/prediction-immutability-codex.py\"",
+            "timeout": 5,
+            "statusMessage": "Protecting blind predictions"
+          }
+        ]
+      }
+    ]
+  }
+}

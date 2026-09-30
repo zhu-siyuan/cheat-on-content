@@ -64,10 +64,10 @@ allowed-tools: Bash(*), Read, Write, Edit, Glob, Grep, Skill, Task, mcp__llm-cha
 
 - **READINESS_HEURISTIC** —
   - **默认参考**：校准池 ≥ 5 样本 + 至少 1 个跨样本观察有 ≥3 样本支持
-  - **但 Claude 可以提议 bump**（即使样本少）如果观察信号特别强：
+  - **但 agent 可以提议 bump**（即使样本少）如果观察信号特别强：
     - N=3 但出现完全推翻当前 rubric 假设的强反例（composite 8.5 vs 实绩 5w 这种 ≥3x 偏差）
     - 1 篇出现单点但极强的现象（如评论区出现 ≥2000 赞的单一模因）
-  - **Claude 也可以拒绝 bump**（即使样本足）如果证据弱：
+  - **agent 也可以拒绝 bump**（即使样本足）如果证据弱：
     - N=10 但观察都是低置信度的零碎 pattern，无清晰方向
     - 用户复盘时大量"随便看了下"的非严肃判断
   - **写在 prediction header 或 cheat-bump 输出时必说明**：本次提议是 default-aligned 还是 judgment-driven，给用户审视依据
@@ -92,8 +92,8 @@ allowed-tools: Bash(*), Read, Write, Edit, Glob, Grep, Skill, Task, mcp__llm-cha
 
 | 检查 | 失败处理 |
 |---|---|
-| 校准池总样本数 vs 观察强度 | **Claude 判断**——按 READINESS_HEURISTIC：默认 ≥5 样本但允许特例（强反例 / 强模因）。如不满足默认，Claude 必须**显式说明**为什么仍然提议 bump（"虽然只 N=3 样本，但 X 这条出现 composite Y vs 实绩 Z，这是 W 倍偏差"），让用户审视 |
-| 上次 bump 距今的新校准数 vs 观察成熟度 | **Claude 判断**——默认建议 ≥3 篇新样本，但如果连续 3 篇都强证据指向同一方向 → 不必再等 |
+| 校准池总样本数 vs 观察强度 | **agent 判断**——按 READINESS_HEURISTIC：默认 ≥5 样本但允许特例（强反例 / 强模因）。如不满足默认，agent 必须**显式说明**为什么仍然提议 bump（"虽然只 N=3 样本，但 X 这条出现 composite Y vs 实绩 Z，这是 W 倍偏差"），让用户审视 |
+| 上次 bump 距今的新校准数 vs 观察成熟度 | **agent 判断**——默认建议 ≥3 篇新样本，但如果连续 3 篇都强证据指向同一方向 → 不必再等 |
 | `in_progress_session == null` | 拒绝："你有 in-progress 预测未完成。先走完那条流程或清掉 state" |
 | 触发条件成立（系统性偏差 / 跨样本新观察 / 新维度证据足） | 警告但不阻塞——询问用户为什么现在 bump |
 
@@ -122,20 +122,22 @@ allowed-tools: Bash(*), Read, Write, Edit, Glob, Grep, Skill, Task, mcp__llm-cha
 
 ### Phase 2: 校准池全量重打分（**强制走 blind sub-agent**）
 
+**Runtime mapping**：Codex 用当前 harness 的 fresh-context subagent / Multi-agent `spawn_agent`；Claude Code legacy 可用 Task。任何实现都必须保证 channel B 只收到 script + blind-safe rubric，不能 fork 主对话的污染上下文。
+
 Glob `predictions/*.md` 中所有有完整复盘段的文件 → 校准池。
 
-**bump 是工具最高风险动作——所有重打必须走 [cheat-score-blind](../cheat-score-blind/SKILL.md) sub-agent**。inline 重打 = 主 Claude 已经看过实绩，rank 一致性变成 overfit 而非真信号。
+**bump 是工具最高风险动作——所有重打必须走 [cheat-score-blind](../cheat-score-blind/SKILL.md) sub-agent**。inline 重打 = 主 agent 已经看过实绩，rank 一致性变成 overfit 而非真信号。
 
 #### 强制约束
 
-- **不接受 self-scored fallback**——`/cheat-predict` 有 `--skip-blind` flag，但 `/cheat-bump` **没有**。如果 Task tool 不可用 → **abort bump**，向用户报告"先解决 Task tool 再 bump"
+- **不接受 self-scored fallback**——`/cheat-predict` 有 `--skip-blind` flag，但 `/cheat-bump` **没有**。如果 isolated subagent 不可用 → **abort / postpone bump**，但不要把内部运行时配置当成用户待办；继续积累数据，等隔离执行能力可用后再自动尝试
 - **不接受"我只重算 composite 不重打 dim"** —— 即使新公式只调权重不加维度，每条 prediction 的所有 dim 都要由 sub-agent 重新审 script。理由：旧 dim 分本身可能是污染的；权重变了不能保证旧 dim 还成立
 
 #### 对每篇 prediction：
 
 1. 解析 prediction 文件拿到对应 `scripts/<id>.md` 路径（从 `Script Path` header 字段）
 2. 校验 script 文件存在 + hash 跟 header `Script Hash` 一致；不一致 → 警告（script 改过了）但仍 spawn sub-agent
-3. **通过 Task tool spawn cheat-score-blind sub-agent**：
+3. **通过 isolated subagent spawn cheat-score-blind sub-agent**：
    ```
    Spawn cheat-score-blind sub-agent.
 
@@ -160,7 +162,7 @@ Glob `predictions/*.md` 中所有有完整复盘段的文件 → 校准池。
 
 | 类型 | 来源 | 标注字段 |
 |---|---|---|
-| 模型 prior contamination | sub-agent 仍是 Claude，RLHF 共享 | `model_prior_warning: true`（默认 true，不可关） |
+| 模型 prior contamination | sub-agent 仍是 agent，RLHF 共享 | `model_prior_warning: true`（默认 true，不可关） |
 | 用户自己 rubric design bias | rubric_notes.md 是用户写的，自然 fit 自己内容 | `rubric_self_designed: true`（默认 true，不可关） |
 
 这两条提示用户 channel C（跨模型 audit）的不可省。bump 报告末尾必印："上面的 rank 一致性是 channel A 内的一致性。**最终决策必须等 channel C audit 通过**。"
@@ -170,8 +172,8 @@ Glob `predictions/*.md` 中所有有完整复盘段的文件 → 校准池。
 | 症状 | 处理 |
 |---|---|
 | 某条 prediction 的 script 文件不见了 | sub-agent skip 该条，主流程汇总报告"N 条因 script 缺失被排除"。如剩余有效池 < MIN_SAMPLES → abort bump |
-| sub-agent 返回 `refusal != null` | 重发 Task 最多 3 次；仍败 → 该条标 `rescore_failed: true` 排除出校准池 |
-| Task tool 整个不可用 | abort bump，提示用户"Task tool 是 bump 的硬依赖。如真的离线环境，跑 `/cheat-bump --bucket-only` 走轻量分支" |
+| sub-agent 返回 `refusal != null` | 重发 subagent task 最多 3 次；仍败 → 该条标 `rescore_failed: true` 排除出校准池 |
+| isolated subagent 整个不可用 | postpone full bump；普通用户只需要知道“这次先不改公式，继续积累样本”，内部可在合适时机走 bucket-only 轻量分支 |
 | sub-agent 输出含 contamination_signal | 标 `suspicious: true` 但不排除——bump report 末尾列这些可疑条目让用户审 |
 
 ### Phase 3: 计算排序一致性
@@ -300,7 +302,7 @@ prompt:
 （rubric bump 时全量重算，由 cheat-score-blind sub-agent 独立打分；详见 rubric-memo.md 的 v2 → v2.1 升级 Memo）
 ```
 
-`blind: true` 字段**必填**——告诉未来读这条记录的人"这是 channel B 隔离打分，不是主 Claude 自评"。如果某条 prediction 在 Phase 2 因 sub-agent 失败被排除 → 不会有 Re-scored 行（保持原样）。
+`blind: true` 字段**必填**——告诉未来读这条记录的人"这是 channel B 隔离打分，不是主 agent 自评"。如果某条 prediction 在 Phase 2 因 sub-agent 失败被排除 → 不会有 Re-scored 行（保持原样）。
 
 用 Edit 工具，匹配每个文件的最末尾。
 
@@ -440,7 +442,7 @@ baseline: 4.2w 中位数（基于 5 篇校准样本）
 - 不重打 composite（公式没变）
 - 不重新审核观察段（rubric 没变）
 - 不调跨模型审核（确定性派生无需判断）
-- 不要求严格的样本数门槛（按 READINESS_HEURISTIC 由 Claude 判断；ratio 模式 N=1 就能跑）
+- 不要求严格的样本数门槛（按 READINESS_HEURISTIC 由 agent 判断；ratio 模式 N=1 就能跑）
 
 ---
 
@@ -456,7 +458,7 @@ baseline: 4.2w 中位数（基于 5 篇校准样本）
 ## Refusals
 
 - 「跳过校准池重打，直接换公式」 → 拒绝。原则 #2
-- 「跳过 cheat-score-blind sub-agent，主 Claude 直接重打就行」 → 拒绝。bump **不接受**任何 self-scored fallback——sub-agent 不可用 → abort bump，不接受"自审"
+- 「跳过 cheat-score-blind sub-agent，主 agent 直接重打就行」 → 拒绝。bump **不接受**任何 self-scored fallback——sub-agent 不可用 → abort bump，不接受"自审"
 - 「跳过外部 LLM 审核」 → 仅当 `CROSS_MODEL_AUDIT=false` 显式设置
 - 「这次 THRESHOLD 调到 3/5 让它过」 → 拒绝。改 THRESHOLD 是元层级 bump
 - 「保留所有旧观察作为历史」 → 违反原则 #3
@@ -467,8 +469,8 @@ baseline: 4.2w 中位数（基于 5 篇校准样本）
 
 ## Integration
 
-- 上游：`/cheat-retro` 检测到 ≥3 同向偏差 → 提议跑 `/cheat-bump`
-- 依赖：`mcp__llm-chat__chat`（如配置）+ Task tool（spawn cheat-score-blind）
+- 上游：retro 检测到系统性同向偏差 → operator 内部评估是否进入 bump，不要求用户触发
+- 依赖：`mcp__llm-chat__chat`（如配置）+ isolated subagent（spawn cheat-score-blind）
 - 修改：
   - `rubric_notes.md`（结构性更新，**绝不**写真实视频名 / 实绩）
   - `rubric-memo.md`（**新**——append Memo 全文，含证据 + 派生证据）
