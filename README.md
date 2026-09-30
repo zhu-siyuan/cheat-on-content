@@ -122,7 +122,7 @@ bash install.sh
 
 14 sub-skills are symlinked into your agent's skill directory. One install, every content project gets it.
 
-**Supported agents**: Claude Code (default) · Codex (`bash install.sh --codex`) · Both (`bash install.sh --all`)
+**Supported agents**: Claude Code (legacy workflow) · **Codex native zero-learning mode**
 
 > Frozen version: `bash install.sh --copy` / `bash install.sh --codex --copy`
 >
@@ -130,34 +130,67 @@ bash install.sh
 
 ---
 
-## 🚀 First run
+## 🚀 Codex native: no onboarding command
 
-In your content project directory, open a skill-compatible agent and say:
+For Codex, install the native entry + lifecycle hooks:
 
+```bash
+git clone https://github.com/zhu-siyuan/cheat-on-content.git
+cd cheat-on-content
+bash install-codex.sh
 ```
-初始化 cheat-on-content
+
+Then open Codex inside any content project and **just say what you actually want to do**:
+
+```text
+我最近有个想法：为什么具身智能到现在还没有 GPT-3 moment？
+我大概有三个观点……
 ```
 
-(or `init cheat-on-content`)
+No `init`, no `status`, no `/cheat-*` command list.
 
-Five yes/no questions complete onboarding. **Strongly recommend importing a benchmark account** — 5–10 samples and the tool gets an anchor immediately. Without one, your first 5 predictions land at ±50% precision.
+The Content Operator will:
+
+1. silently bootstrap the project if needed;
+2. infer what it can from your normal conversation and existing files;
+3. ask one important missing question at a time;
+4. draft / score / lock a blind prediction when you are actually ready to shoot;
+5. remember that you published;
+6. surface T+3d retros when they become actionable;
+7. turn performance data into the next concrete recommendation;
+8. recalibrate the rubric internally when the evidence is strong enough.
+
+Codex may require a one-time review/trust of the installed lifecycle hooks. After that, SessionStart can restore project state automatically and the PreToolUse guard protects immutable prediction sections.
 
 ---
 
-## ⚡ Daily use
+## ⚡ Daily use: speak normally
 
+There is no special daily syntax.
+
+```text
+“我今天突然想到一个观点……”
+→ AI 深挖你的 angle，必要时问你一个关键问题，然后写稿
+
+“这版我改好了，准备拍”
+→ AI 自动评分，并在看到实绩前锁定盲预测
+
+“拍完了，临场改了不少”
+→ AI 记录实际拍摄稿，必要时写 v2 预测
+
+“发了：https://...”
+→ AI 自动识别平台并登记，记住未来的复盘窗口
+
+“后台数据在这里”
+→ AI 自动定位对应作品、复盘、沉淀经验，并给下一条建议
+
+“下一条我做什么？”
+→ AI 结合 buffer、候选池、最近复盘和校准状态给建议
 ```
-score this scripts/<...>.md       → grade only
-start prediction scripts/<...>.md → blind prediction + decision log
-shot scripts/<...>.md             → create video folder + buffer +1
-shipped https://...                → buffer -1
-retro videos/<...>/                → T+3d data + retrospective
-status / fetch trends / find topic / bump rubric / find benchmark
-```
 
-Hook-aware agents auto-report buffer + pending retros + top candidates at every session start — no need to ask. Other agents: just say `status`.
+The old `cheat-*` sub-skills still exist, but they are **internal implementation details in Codex native mode**. You should not need to learn them.
 
-Full workflow + sub-skill details: see [SKILL.md](SKILL.md).
+Full internal protocol: see [SKILL.md](SKILL.md). User-facing orchestration: see [skills/content-operator/SKILL.md](skills/content-operator/SKILL.md).
 
 ---
 
