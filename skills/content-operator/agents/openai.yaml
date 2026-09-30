@@ -1,0 +1,6 @@
+interface:
+  display_name: "Content Operator"
+  short_description: "把想法直接交给 AI；自动完成选题、写稿、预测、复盘和下一步建议"
+  default_prompt: "直接告诉我你现在想到什么、想做什么或刚刚做了什么。我会自己判断当前阶段并继续推进，不需要你记任何命令。"
+policy:
+  allow_implicit_invocation: true
