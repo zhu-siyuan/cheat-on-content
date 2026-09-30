@@ -366,8 +366,8 @@ avg_chars_per_line=$(( char_count / (line_count > 0 ? line_count : 1) ))
 
 步骤：
 
-1. 检查 `humanizer` skill 是否可用（`~/.claude/skills/humanizer/` 存在）：
-   - 不可用 → 跳过 4.5b，在 Phase 5 输出里加一行"（humanizer 未装，draft 是原始 AI 版——`git clone https://github.com/blader/humanizer` 到 ~/.claude/skills/ 可启用自动去 AI 味）"
+1. 检查 `humanizer` skill 是否可用：Codex 优先 `~/.agents/skills/humanizer/`，Claude Code 兼容 `~/.claude/skills/humanizer/`：
+   - 不可用 → 跳过 4.5b，在 Phase 5 输出里加一行"（humanizer 未装，draft 是原始 AI 版；Codex 可装到 `~/.agents/skills/humanizer/`，Claude Code 可装到 `~/.claude/skills/humanizer/`）"
 2. 可用 → 通过 Skill tool 调 `humanizer`，**只传 draft 正文**（`---` 分隔线之后、4.5a 已重排好的段落版），**绝不传 header**：
    - header 的 `⚠️ Draft by Claude — 你必须改写后再拍` 警告是**有意的脚手架标记**，不是要 humanize 的散文
    - **voice calibration**：如果用户有历史脚本（`videos/*/script.md`）或填过 `script_patterns.md`，把最近 1-2 份作为 humanizer 的 voice 参考样本一起传——让它往"**这个用户的声音**"靠，而不是"通用人声"
@@ -387,13 +387,10 @@ avg_chars_per_line=$(( char_count / (line_count > 0 ? line_count : 1) ))
 🧹 humanizer 过了一遍：修了 em-dash 滥用 ×3 / rule of three ×2 / inflated 词汇 2 处
    （draft 现在不那么"机器味"了——但这仍是脚手架，不是你的声音）
 
-接下来你可以：
-- 改写这份 draft（直接在原文件改）—— 加你的语气、经历、真实金句
-- 改完跑 "打分这篇 scripts/<...>.md" 看 7 维评分
-- 决定要拍 → "启动预测 scripts/<...>.md"
+接下来你可以直接改这份 draft，加上你的语气、经历和真实金句。
+改完只要告诉我“这版可以拍了”，我会自己继续做评分和拍前盲预测，不需要记任何命令。
 
-下一篇你想做什么？
-（直接告诉我具体经历 / topic，或者说"今天就这样"结束）
+如果你想继续下一篇，直接讲新的经历 / topic；如果今天到这里，也直接说就行。
 ```
 
 > humanizer 那行只在 `HUMANIZE_DRAFT=on` 且 skill 可用时出现。未装时换成一行提示如何启用。
